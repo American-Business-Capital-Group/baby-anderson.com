@@ -4,7 +4,16 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="color-scheme" content="light dark" />
-<link rel="icon" href="data:," />
+<link rel="icon" href="/favicon.ico" sizes="any" />
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
+<link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
+<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+<link rel="manifest" href="/manifest.webmanifest" />
+<meta name="theme-color" content="#4AA3E4" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-title" content="Baby Anderson" />
+<meta name="apple-mobile-web-app-status-bar-style" content="default" />
 <title>B-A.com</title>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -150,11 +159,12 @@ table.dt td{padding:8px;border-bottom:1px solid var(--line);vertical-align:top}
   </div>
   <p class="brand">B-A.com</p>
   <p class="tag">Family sign-in</p>
-  <form class="logincard" id="loginform" autocomplete="off">
+  <form class="logincard" id="loginform" method="post" action="#">
     <label for="lu">Username</label>
-    <input id="lu" type="email" required autocomplete="username" aria-label="Username" placeholder="Username" />
+    <input id="lu" name="username" type="email" required autocomplete="username" aria-label="Username" placeholder="Username" />
     <label for="lp">Password</label>
-    <input id="lp" type="password" required autocomplete="current-password" aria-label="Password" placeholder="Password" />
+    <input id="lp" name="password" type="password" required autocomplete="current-password" aria-label="Password" placeholder="Password" />
+    <label for="showpw" style="display:inline-flex;align-items:center;gap:7px;font-size:14px;color:var(--muted);margin:2px 0 4px;cursor:pointer"><input type="checkbox" id="showpw" style="width:17px;height:17px;accent-color:var(--deep)" onchange="document.getElementById('lp').type=this.checked?'text':'password'" /> Show password</label>
     <button class="btn" type="submit" id="loginbtn">Sign in</button>
     <p id="loginerr" role="alert"></p>
   </form>
@@ -176,7 +186,7 @@ table.dt td{padding:8px;border-bottom:1px solid var(--line);vertical-align:top}
   </div></header>
   <main id="view"></main>
   <footer class="site">
-    <div>v1.34</div>
+    <div>v1.35</div>
     <div>Artificial Intelligence Designed Exclusively by the American Business Capital Group, Inc. © 2026 All Rights Reserved</div>
   </footer>
 </div>
@@ -670,7 +680,7 @@ function bindPage(page, parts){
       b.addEventListener("click", function(){ downloadPhoto(b.getAttribute("data-dl")); });
     });
     document.getElementById("json-btn").addEventListener("click", function(){
-      var backup = { site:"Baby Anderson — website edition", version:"v1.34", exported:new Date().toISOString(), sessionEdits: state, data: DATA };
+      var backup = { site:"Baby Anderson — website edition", version:"v1.35", exported:new Date().toISOString(), sessionEdits: state, data: DATA };
       downloadBlob(new Blob([JSON.stringify(backup, null, 2)], {type:"application/json"}), "baby-anderson-backup.json");
     });
     document.getElementById("planner-btn").addEventListener("click", function(){
