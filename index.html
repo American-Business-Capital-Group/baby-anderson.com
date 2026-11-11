@@ -333,7 +333,7 @@ h2 .ic,h3 .ic{width:21px;height:21px}
   </div></header>
   <main id="view"></main>
   <footer class="site">
-    <div>v1.45</div>
+    <div>v1.47</div>
     <div>Artificial Intelligence Designed Exclusively by the American Business Capital Group, Inc. © 2026 All Rights Reserved</div>
   </footer>
 </div>
@@ -665,26 +665,7 @@ function pageHome(){
   return h;
 }
 
-/* ---------- family tree: Trey at the top, branches stemming out ---------- */
-function treeLevelOf(m){
-  var t = ((m.group || "") + " " + (m.relation || "")).toLowerCase();
-  var hasGrand = t.indexOf("grand") >= 0;
-  if (hasGrand && t.indexOf("great-great") >= 0) return 4;
-  if (hasGrand && t.indexOf("great") >= 0) return 3;
-  if (hasGrand) return 2;
-  if (/\b(father|mother|dad|mom)\b/.test(t) || /\bparents?\b/.test(t)) return 1;
-  return 5;
-}
-function treeSideOf(m, level){
-  var rel = (m.relation || "").toLowerCase();
-  var nm = (m.name || "").toLowerCase();
-  if (rel.indexOf("paternal") >= 0) return "L";
-  if (rel.indexOf("maternal") >= 0) return "R";
-  if (level === 1) return nm.indexOf("kameisha") >= 0 ? "R" : "L";
-  if (/sallah|seal|wilder/.test(nm)) return "R";
-  if (/anderson|freedlund|lowe|hartman|slone|donahue/.test(nm)) return "L";
-  return null;
-}
+/* ---------- family tree: true branching — every person hangs from their own parents ---------- */
 function treeInitials(name){
   return name.replace(/[“”"()]/g, "").split(" ").map(function(x){ return x[0]; }).slice(0, 2).join("");
 }
@@ -717,22 +698,14 @@ function initTreeZoom(){
   });
 }
 function pageTree(){
-  var W = 1560, CX = W / 2;
-  var levels = {1: [], 2: [], 3: [], 4: [], 5: []};
+  var bySlug = {}, byName = {};
+  DATA.members.forEach(function(m){ bySlug[m.slug] = m; byName[m.name] = m; });
+  // Trey is the root node at the top, drawn from the badge rather than a member card
+  var treyMember = null;
   DATA.members.forEach(function(m){
     var nm = (m.name || "").toLowerCase();
-    if (nm.indexOf("jonathan malick") >= 0 || (m.slug || "").indexOf("trey") >= 0) return; // Trey is the root node
-    levels[treeLevelOf(m)].push(m);
+    if (nm.indexOf("jonathan malick") >= 0 || (m.slug || "").indexOf("trey") >= 0) treyMember = m;
   });
-  var dia = {0: 118, 1: 96, 2: 88, 3: 80, 4: 76, 5: 70};
-  var pos = {}, side = {};
-  pos.__trey = {x: CX, y: 100, d: dia[0]};
-  function spread(list, x0, x1, y, d, stagger){
-    list.forEach(function(m, i){
-      var x = list.length === 1 ? (x0 + x1) / 2 : x0 + (x1 - x0) * (i / (list.length - 1));
-      pos[m.slug] = {x: x, y: y + (stagger && i % 2 === 1 ? 142 : 0), d: d};
-    });
-  }
   // married couples: spouses always sit directly side by side, with nobody between them
   var partnerOf = {};
   [["jon-m-anderson","kameisha-anderson"],["jon-a-anderson","kirsten-anderson"],["malick-sallah","kimberly-sallah"],
@@ -740,98 +713,11 @@ function pageTree(){
    ["momadou-sallah","fatoumama-sallah"],["ruth-lowe","lloyd-lowe"],["willard-anderson","alice-anderson-slone"],
    ["june-hartman-donahue","donald-hartman"],["marilyn-metti-freedlund","rogers-freedlund-sr"]
   ].forEach(function(pr){ partnerOf[pr[0]] = pr[1]; partnerOf[pr[1]] = pr[0]; });
-  var byName = {}, bySlug = {};
-  DATA.members.forEach(function(m){ byName[m.name] = m; bySlug[m.slug] = m; });
   DATA.members.forEach(function(m){
     if (m.spouseName && byName[m.spouseName]) { partnerOf[m.slug] = byName[m.spouseName].slug; partnerOf[byName[m.spouseName].slug] = m.slug; }
   });
-  // group an ordered list into units: a married couple becomes one two-person unit
-  function coupleUnits(list){
-    var units = [], used = {};
-    list.forEach(function(m){
-      if (used[m.slug]) return;
-      var p = partnerOf[m.slug] ? bySlug[partnerOf[m.slug]] : null;
-      if (p && p !== m && list.indexOf(p) >= 0 && !used[p.slug]) { units.push([m, p]); used[m.slug] = 1; used[p.slug] = 1; }
-      else { units.push([m]); used[m.slug] = 1; }
-    });
-    return units;
-  }
-  // place one side of a generation row, keeping each couple together as a unit;
-  // returns true when the row had to stagger (whole couples stagger together)
-  function placeSide(list, x0, x1, y, d){
-    var units = coupleUnits(list);
-    if (!units.length) return false;
-    var gapIn = d + 56;
-    function halfW(u){ return u.length === 2 ? (gapIn + d) / 2 : d / 2; }
-    var lo = x0 + halfW(units[0]), hi = x1 - halfW(units[units.length - 1]), centers = [], ok = true;
-    units.forEach(function(u, i){
-      centers.push(units.length === 1 ? (x0 + x1) / 2 : lo + (hi - lo) * (i / (units.length - 1)));
-    });
-    for (var i = 0; i + 1 < units.length; i++)
-      if (centers[i + 1] - centers[i] < halfW(units[i]) + halfW(units[i + 1]) + 34) ok = false;
-    if (ok){
-      units.forEach(function(u, i){
-        if (u.length === 2){
-          pos[u[0].slug] = {x: centers[i] - gapIn / 2, y: y, d: d};
-          pos[u[1].slug] = {x: centers[i] + gapIn / 2, y: y, d: d};
-        } else pos[u[0].slug] = {x: centers[i], y: y, d: d};
-      });
-      return false;
-    }
-    // crowded row: even slots like before, but a couple's two slots stay together and stagger together
-    var slots = [];
-    units.forEach(function(u, ui){ u.forEach(function(m){ slots.push({m: m, u: ui}); }); });
-    var spacing = slots.length > 1 ? (x1 - x0) / (slots.length - 1) : 1e9;
-    var stag = spacing < 118;
-    slots.forEach(function(s, i){
-      var x = slots.length === 1 ? (x0 + x1) / 2 : x0 + (x1 - x0) * (i / (slots.length - 1));
-      pos[s.m.slug] = {x: x, y: y + (stag && s.u % 2 === 1 ? 142 : 0), d: d};
-    });
-    return stag;
-  }
-  var yCursor = 100;
-  [1, 2, 3, 4].forEach(function(lv){
-    var L = [], R = [], N = [];
-    levels[lv].forEach(function(m){
-      var s = treeSideOf(m, lv); side[m.slug] = s;
-      if (s === "L") L.push(m); else if (s === "R") R.push(m); else N.push(m);
-    });
-    N.forEach(function(m){ var tgt = L.length <= R.length ? L : R; side[m.slug] = tgt === L ? "L" : "R"; tgt.push(m); });
-    var baseY = yCursor + 216;
-    if (lv === 1){
-      // Trey's parents: paired together at the center of the row — Dad left, Mom right, nobody between them
-      var dad = L[0] || levels[1][0], mom = R[0] || levels[1][1];
-      if (dad) pos[dad.slug] = {x: CX - 86, y: baseY, d: dia[1]};
-      if (mom) pos[mom.slug] = {x: CX + 86, y: baseY, d: dia[1]};
-      yCursor = baseY;
-      return;
-    }
-    var stag = placeSide(L, 84, CX - 74, baseY, dia[lv]) | placeSide(R, CX + 74, W - 84, baseY, dia[lv]);
-    yCursor = baseY + (stag ? 142 : 0);
-  });
-  // extended family (aunts, uncles, cousins, godparents & more): rows along the outer branch lines
-  var extL = [], extN = [], extR = [];
-  levels[5].forEach(function(m){
-    var s = treeSideOf(m, 5); side[m.slug] = s;
-    if (s === "L") extL.push(m); else if (s === "R") extR.push(m); else extN.push(m);
-  });
-  // rows are filled couple by couple, so a pair is never split or separated within a row
-  var extUnits = coupleUnits(extL.concat(extN, extR));
-  var extRows = [], curRow = [];
-  extUnits.forEach(function(u){
-    if (curRow.length && curRow.length + u.length > 10) { extRows.push(curRow); curRow = []; }
-    u.forEach(function(m){ curRow.push(m); });
-  });
-  if (curRow.length) extRows.push(curRow);
-  var ext = [];
-  extRows.forEach(function(r){ r.forEach(function(m){ ext.push(m); }); });
-  var extY = yCursor + 224;
-  extRows.forEach(function(row, r){ spread(row, 84, W - 84, extY + r * 208, dia[5], false); });
-  var H = (extRows.length ? extY + (extRows.length - 1) * 208 : yCursor) + 158;
-  // branch connectors: every person is joined to their OWN parents — never to a
-  // nearest neighbour. The line lands on the midpoint between the two parents
-  // (or on the one parent who is in the tree). Anyone whose parents are not in
-  // the tree gets no parent line; spouses by marriage get the couple link below.
+  /* The explicit parents map — every stem in the tree is drawn from this and only
+     this: each person joins to their OWN parents, at the midpoint between them. */
   var PARENTS = {
     "jon-a-anderson": ["mark-anderson", "joy-anderson"],
     "kirsten-anderson": ["rogers-freedlund-jr", "joy-freedlund"],
@@ -842,6 +728,8 @@ function pageTree(){
     "rogers-freedlund-jr": ["rogers-freedlund-sr", "marilyn-metti-freedlund"],
     "joy-freedlund": ["donald-hartman", "june-hartman-donahue"],
     "una-seal": ["cora-grace-wilder"],
+    "jon-m-anderson": ["jon-a-anderson", "kirsten-anderson"],
+    "kameisha-anderson": ["malick-sallah", "kimberly-sallah"],
     "brendan-anderson": ["jon-a-anderson", "kirsten-anderson"],
     "morgan-josiah-soderstrom": ["jon-a-anderson", "kirsten-anderson"],
     "ashley-robo-hanrahan": ["jon-a-anderson", "kirsten-anderson"],
@@ -868,57 +756,631 @@ function pageTree(){
     "abass-sallah": ["dr-tijan-sallah", "fatim-haidara"],
     "selly-sallah": ["dr-tijan-sallah", "fatim-haidara"]
   };
-  function parentAnchor(slugs){
-    var pts = [];
-    (slugs || []).forEach(function(s){ if (pos[s]) pts.push(pos[s]); });
-    if (!pts.length) return null;
-    if (pts.length === 1) return pts[0];
-    return {x: (pts[0].x + pts[1].x) / 2, y: pts[0].y, d: pts[0].d};
+  if (treyMember) PARENTS[treyMember.slug] = ["jon-m-anderson", "kameisha-anderson"];
+  // Payton is Jon & Kameisha's dog — Trey's big sister on duty — so she fans out beside him under the same couple
+  DATA.members.forEach(function(m){
+    if (!PARENTS[m.slug] && /payton/i.test(m.name || "")) PARENTS[m.slug] = ["jon-m-anderson", "kameisha-anderson"];
+  });
+  /* Units: a married couple is one unit, its two partners side by side; everyone
+     else is a unit of one. A combined record (e.g. "Ashley & Robo Hanrahan") is
+     already a single node. */
+  var units = [], unitOf = {};
+  DATA.members.forEach(function(m){
+    if (m === treyMember || unitOf[m.slug]) return;
+    var p = partnerOf[m.slug] ? bySlug[partnerOf[m.slug]] : null;
+    var u;
+    if (p && p !== m && p !== treyMember && !unitOf[p.slug]) u = { members: [m, p], key: m.slug + "+" + p.slug };
+    else u = { members: [m], key: m.slug };
+    u.members.forEach(function(mm){ unitOf[mm.slug] = u; });
+    units.push(u);
+  });
+  function parentUnitOf(m){
+    var par = PARENTS[m.slug]; if (!par) return null;
+    for (var i = 0; i < par.length; i++) if (unitOf[par[i]]) return unitOf[par[i]];
+    return null;
   }
-  function link(a, b, w, op){
-    if (!a || !b || Math.abs(a.y - b.y) < 10) return; // same row: no line (family sits together)
-    if (a.y < b.y) branch(a, b, w, op); else branch(b, a, w, op);
+  // the children of each unit — the fan that sits in the row directly above that couple
+  var childrenOf = {};
+  DATA.members.forEach(function(m){
+    if (m === treyMember) return;
+    var pu = parentUnitOf(m); if (!pu) return;
+    var cu = unitOf[m.slug]; if (!cu || cu === pu) return;
+    (childrenOf[pu.key] = childrenOf[pu.key] || []).push({ member: m, unit: cu });
+  });
+  function fanUnits(u){
+    var seen = {}, out = [];
+    (childrenOf[u.key] || []).forEach(function(e){ if (!seen[e.unit.key]) { seen[e.unit.key] = 1; out.push(e.unit); } });
+    return out;
+  }
+  var rootUnit = unitOf["jon-m-anderson"];
+  // generation depth of every unit: Trey 0, his parents' couple 1, grandparents 2, and so on down
+  if (rootUnit){
+    rootUnit.depth = 1;
+    var seenD = {}; seenD[rootUnit.key] = 1;
+    var queue = [rootUnit];
+    while (queue.length){
+      var qu = queue.shift();
+      fanUnits(qu).forEach(function(k){ if (!seenD[k.key]) { seenD[k.key] = 1; k.depth = qu.depth - 1; queue.push(k); } });
+      qu.members.forEach(function(m){
+        var pu = parentUnitOf(m);
+        if (pu && !seenD[pu.key]) { seenD[pu.key] = 1; pu.depth = qu.depth + 1; queue.push(pu); }
+      });
+    }
+  }
+  var DIA = {0: 112, 1: 96, 2: 88, 3: 80, 4: 74};
+  function diaFor(depth){ return DIA[Math.max(0, Math.min(4, depth || 0))] || 70; }
+  var SLOT = 148, FAN_GAP = 22, ROW_H = 218, TOP_Y = 104;
+  function ownWidth(u){
+    if (u.members.length === 2) return diaFor(u.depth) + 64 + SLOT;
+    return SLOT;
+  }
+  // half the room a unit's portraits + name labels take up, centred on its anchor
+  function boxHalf(u){ return u.members.length === 2 ? (diaFor(u.depth) + 64) / 2 + 66 : 74; }
+  // width of a unit plus the whole fan above it (its children, grandchildren, …)
+  function upWidth(u){
+    if (u._w != null) return u._w;
+    var w = ownWidth(u), kids = fanUnits(u);
+    if (kids.length){
+      var s = 0; kids.forEach(function(k){ s += upWidth(k); });
+      s += FAN_GAP * (kids.length - 1);
+      if (s > w) w = s;
+    }
+    u._w = w; return w;
+  }
+  units.forEach(function(u){ upWidth(u); });
+  // Trey's direct ancestors — the trunk line the whole tree hangs from
+  var anc = {};
+  if (treyMember){
+    anc[treyMember.slug] = 1;
+    var aq = [treyMember.slug];
+    while (aq.length){
+      var cs = aq.shift();
+      (PARENTS[cs] || []).forEach(function(p){ if (!anc[p]) { anc[p] = 1; aq.push(p); } });
+    }
+  }
+  // a couple's fan entries (child + the unit that child sits in), de-duplicated by unit
+  /* Which half of the tree each trunk couple belongs to: Jon's parents are the
+     left half, Kameisha's the right half, and every couple below inherits the
+     half of the couple it hangs from. A couple's fan reaches AWAY from the
+     middle — Dad's side fans one way, Mom's side the other — so the two
+     halves never reach across each other. */
+  var sideOf = {};
+  if (rootUnit){
+    sideOf[rootUnit.key] = "C";
+    var sq = [rootUnit];
+    while (sq.length){
+      var su = sq.shift();
+      su.members.forEach(function(m, i){
+        var Cp = parentUnitOf(m);
+        if (Cp && !sideOf[Cp.key]){
+          sideOf[Cp.key] = sideOf[su.key] === "C" ? (i === 0 ? "L" : "R") : sideOf[su.key];
+          sq.push(Cp);
+        }
+      });
+    }
+  }
+  function fanEntries(u){
+    var seen = {}, out = [];
+    (childrenOf[u.key] || []).forEach(function(e){ if (!seen[e.unit.key]) { seen[e.unit.key] = 1; out.push(e); } });
+    return out;
+  }
+  /* Which way a couple's fan reaches: the fan child on Trey's line (the trunk
+     child) sits at the end of the fan nearest the middle of the tree, and its
+     brothers and sisters fan outward from there — Dad's side reaches one way,
+     Mom's side the other, at every level. */
+  function fanDir(u){
+    var dir = null;
+    if (sideOf[u.key] === "L" || sideOf[u.key] === "R") return sideOf[u.key];
+    fanEntries(u).forEach(function(e){
+      if (anc[e.member.slug]) dir = (e.unit.members.indexOf(e.member) === 1) ? "R" : "L";
+    });
+    return dir;
+  }
+  function orderedFan(u){
+    var es = fanEntries(u), dir = fanDir(u);
+    if (!dir) return es;
+    var trunk = null, rest = [];
+    es.forEach(function(e){ if (anc[e.member.slug]) trunk = e; else rest.push(e); });
+    if (!trunk) return es;
+    return dir === "L" ? rest.concat([trunk]) : [trunk].concat(rest);
+  }
+  // a fan laid out with plain above-widths (used for side branches)
+  function fanLayout(u){
+    var es = orderedFan(u), acc = 0, items = [];
+    es.forEach(function(e){
+      var w = upWidth(e.unit);
+      items.push({e: e, anchorOff: acc + w / 2, w: w});
+      acc += w + FAN_GAP;
+    });
+    return {items: items, span: es.length ? acc - FAN_GAP : 0};
+  }
+  /* Region widths, worked out from the oldest couples up: every couple gets a
+     horizontal region wide enough for its fan above AND both of its own
+     parents' couples below, placed so the fan slot for the couple's trunk
+     child lands exactly on that child. Regions nest inside their trunk child's
+     region, so branches can never land on top of each other. */
+  function slotW(e, owner){
+    return anc[e.member.slug] ? ownWidth(e.unit) : upWidth(e.unit);
+  }
+  function trunkFanLayout(u){
+    if (u._tf) return u._tf;
+    var es = orderedFan(u), acc = 0, items = [];
+    es.forEach(function(e){
+      var w = slotW(e, u);
+      items.push({e: e, anchorOff: acc + w / 2, w: w});
+      acc += w + FAN_GAP;
+    });
+    u._tf = {items: items, span: es.length ? acc - FAN_GAP : 0};
+    return u._tf;
+  }
+  function fanW(u){ return trunkFanLayout(u).span; }
+  function slotOff(F, C){
+    var lay = trunkFanLayout(C), off = null;
+    lay.items.forEach(function(it){ if (it.e.unit === F) off = it.anchorOff; });
+    return off;
+  }
+  // F's anchor position inside C's region, when F is C's trunk child
+  function aIR(F, C){
+    return C._loff - fanW(C) / 2 + slotOff(F, C);
+  }
+  var regionUnits = units.filter(function(u){ return u.depth != null && sideOf[u.key]; })
+    .sort(function(a, b){ return b.depth - a.depth; });
+  regionUnits.forEach(function(C){
+    var belowLeft = 0, belowRight = 0;
+    C.members.forEach(function(m){
+      var Cp = parentUnitOf(m); if (!Cp || Cp === C || Cp._loff == null) return;
+      var a = aIR(C, Cp);
+      if (a > belowLeft) belowLeft = a;
+      if (Cp._W - a > belowRight) belowRight = Cp._W - a;
+    });
+    C._loff = Math.max(fanW(C) / 2, ownWidth(C) / 2, belowLeft);
+    C._W = C._loff + Math.max(fanW(C) / 2, ownWidth(C) / 2, belowRight);
+  });
+  function setPos(u, cx){
+    var d = diaFor(u.depth), y = TOP_Y + u.depth * ROW_H;
+    if (u.members.length === 2){
+      pos[u.members[0].slug] = {x: cx - (d + 64) / 2, y: y, d: d};
+      pos[u.members[1].slug] = {x: cx + (d + 64) / 2, y: y, d: d};
+    } else {
+      pos[u.members[0].slug] = {x: cx, y: y, d: d};
+    }
+  }
+  var pos = {}, placedU = {}, maxDepth = 1;
+  // a side branch: the unit, with its fan centred above it, recursively
+  function placeFanOnly(F, anchor){
+    if (!F || placedU[F.key]) return;
+    placedU[F.key] = 1; F.cx = anchor;
+    if (F.depth > maxDepth) maxDepth = F.depth;
+    setPos(F, anchor);
+    var lay = fanLayout(F);
+    if (lay.items.length){
+      var fanLeft = anchor - lay.span / 2;
+      lay.items.forEach(function(it){
+        var cu = it.e.unit, ca = fanLeft + it.anchorOff;
+        if (anc[it.e.member.slug]) placeTrunk(cu, ca - (cu._loff || 0));
+        else placeFanOnly(cu, ca);
+      });
+    }
+    // insurance: a partner's parents couple, if it is in the tree, hangs below too
+    F.members.forEach(function(m){
+      var Cp = parentUnitOf(m);
+      if (!Cp || Cp === F || placedU[Cp.key] || Cp._loff == null) return;
+      placeTrunk(Cp, anchor - aIR(F, Cp));
+    });
+  }
+  // a trunk couple: placed by its region, its fan above it, its parents below
+  function placeTrunk(C, regionLeft){
+    if (!C || placedU[C.key]) return;
+    placedU[C.key] = 1;
+    var anchor = regionLeft + (C._loff || 0);
+    C.cx = anchor;
+    if (C.depth > maxDepth) maxDepth = C.depth;
+    setPos(C, anchor);
+    var lay = trunkFanLayout(C);
+    if (lay.items.length){
+      if (C === rootUnit && treyMember){
+        // Trey himself sits on this couple's anchor, so its other children fan out beside him
+        var tx = anchor + 96;
+        lay.items.forEach(function(it){
+          if (!placedU[it.e.unit.key]) placeFanOnly(it.e.unit, tx + it.w / 2);
+          tx += it.w + FAN_GAP;
+        });
+      } else {
+        var fanLeft = anchor - lay.span / 2;
+        lay.items.forEach(function(it){
+          if (placedU[it.e.unit.key]) return; // the trunk child is already placed, from the shallower side
+          placeFanOnly(it.e.unit, fanLeft + it.anchorOff);
+        });
+      }
+    }
+    // this couple's own parents: one couple below each partner who has parents
+    // in the tree — if the two would land on top of each other, they part
+    // around this couple, Dad's parents to his side, Mom's to hers
+    var pars = [];
+    C.members.forEach(function(m){
+      var Cp = parentUnitOf(m);
+      if (!Cp || Cp === C || placedU[Cp.key] || Cp._loff == null) return;
+      var rl = regionLeft + C._loff - aIR(C, Cp);
+      pars.push({Cp: Cp, regionLeft: rl, anchor: rl + Cp._loff});
+    });
+    if (pars.length === 2){
+      var need = boxHalf(pars[0].Cp) + boxHalf(pars[1].Cp) + 26;
+      var dist = pars[1].anchor - pars[0].anchor;
+      if (Math.abs(dist) < need){
+        var mid = (pars[0].anchor + pars[1].anchor) / 2, sgn = dist < 0 ? -1 : 1;
+        var a0 = mid - sgn * need / 2, a1 = mid + sgn * need / 2;
+        pars[0].regionLeft += a0 - pars[0].anchor; pars[0].anchor = a0;
+        pars[1].regionLeft += a1 - pars[1].anchor; pars[1].anchor = a1;
+      }
+    }
+    pars.forEach(function(pr){ placeTrunk(pr.Cp, pr.regionLeft); });
+  }
+  if (rootUnit && rootUnit._loff != null) placeTrunk(rootUnit, 0);
+  /* The regions guarantee every branch its own ground, but two neighbouring
+     branches can still land close together in a row. Settle each row in the
+     order the regions chose, sharing the crowding fairly: every unit stays
+     as close to its anchored spot as the separations allow (a least-squares
+     fit under the spacing constraints). Couples move as one unit, and every
+     stem is drawn from the final positions afterwards, so no branch line is
+     ever broken by a slide. */
+  function slideUnit(u, dx){
+    if (!dx) return;
+    u.cx += dx;
+    u.members.forEach(function(m){ if (pos[m.slug]) pos[m.slug].x += dx; });
+  }
+  var rootCxPlaced = rootUnit ? rootUnit.cx : 0;
+  function settleDepth(depth, halfFn, gapFn){
+    var row = units.filter(function(u){ return placedU[u.key] && u.depth === depth; });
+    if (row.length < 2) return;
+    var ideal = {};
+    row.forEach(function(u){ ideal[u.key] = u.cx; });
+    row.sort(function(a, b){ return ideal[a.key] - ideal[b.key]; });
+    var n = row.length, c = [0], i;
+    for (i = 1; i < n; i++) c.push(c[i - 1] + (halfFn || boxHalf)(row[i - 1]) + (gapFn == null ? 10 : gapFn) + (halfFn || boxHalf)(row[i]));
+    var val = [], cnt = [], from = [];
+    for (i = 0; i < n; i++){
+      var v = ideal[row[i].key] - c[i], w = 1, st = i;
+      while (val.length && val[val.length - 1] > v){
+        var pv = val.pop(), pw = cnt.pop(), ps = from.pop();
+        v = (v * w + pv * pw) / (w + pw); w += pw; st = ps;
+      }
+      val.push(v); cnt.push(w); from.push(st);
+    }
+    var y = new Array(n);
+    for (var b = 0; b < val.length; b++) for (var k = 0; k < cnt[b]; k++) y[from[b] + k] = val[b];
+    for (i = 0; i < n; i++) slideUnit(row[i], (y[i] + c[i]) - row[i].cx);
+  }
+  settleDepth(1);
+  // Trey's little sister fans out beside him from Jon & Kameisha's anchor —
+  // if that couple was slid while its row settled, she slides with it
+  if (rootUnit && rootUnit.cx !== rootCxPlaced){
+    var rdx = rootUnit.cx - rootCxPlaced;
+    (childrenOf[rootUnit.key] || []).forEach(function(e){
+      if (placedU[e.unit.key] && e.unit.depth === 0) slideUnit(e.unit, rdx);
+    });
+  }
+  settleDepth(0); settleDepth(2); settleDepth(3); settleDepth(4);
+  /* Fan repair: the row settles above only keep neighbouring portraits from
+     crowding — they can slide a couple sideways out from over its own
+     children, so the stems sweep across the tree. This pass puts every
+     parent unit back over its own fan and keeps it there. First, couples
+     are clamped inside the span of their children's faces and the rows are
+     re-settled, back and forth, until both hold at once. Where a packed
+     row leaves a couple no room at all, the children above are dragged —
+     inside their own fans — until the couple fits underneath them. Then
+     each parent unit is eased to the centre of its fan, a slide at a time,
+     accepting only slides that break nothing: the unit stays inside its
+     fan, its row neighbours keep their room, and its own parents stay over
+     it. A parent unit's midpoint ends inside its children's face span,
+     centred wherever the tree allows, so stems drop near-vertically. Units
+     slide whole, so spouses stay side by side. Where a row is packed too
+     tight for the usual portrait spacing, that row's settle relaxes to
+     face-to-face spacing so the fan rule still wins. Jon & Kameisha's
+     couple is the exception: Trey sits on its anchor by construction, so
+     it is never slid. */
+  function faceHalf(u){ var d = diaFor(u.depth); return u.members.length === 2 ? d + 32 : d / 2; }
+  function fanFacesU(u){
+    var out = [], seen = {};
+    fanEntries(u).forEach(function(e){
+      if (seen[e.unit.key]) return; seen[e.unit.key] = 1;
+      var p = pos[e.member.slug]; if (p) out.push({p: p, unit: e.unit});
+    });
+    return out;
+  }
+  function fanSpanU(u){
+    var fs = fanFacesU(u); if (!fs.length) return null;
+    var lo = 1e9, hi = -1e9, loU = null, hiU = null;
+    fs.forEach(function(f){
+      if (f.p.x < lo){ lo = f.p.x; loU = f.unit; }
+      if (f.p.x > hi){ hi = f.p.x; hiU = f.unit; }
+    });
+    return {lo: lo, hi: hi, loU: loU, hiU: hiU, n: fs.length, fs: fs};
+  }
+  // the anchor range a parent unit must sit in: inside its children's faces
+  function intervalFromFaces(fs){
+    if (!fs.length) return null;
+    var lo = 1e9, hi = -1e9;
+    fs.forEach(function(p){ if (p.x < lo) lo = p.x; if (p.x > hi) hi = p.x; });
+    if (fs.length === 1){ var h = fs[0].d / 2 - 1; return {lo: lo - h, hi: lo + h}; }
+    if (hi - lo < 12){ var m = (lo + hi) / 2; return {lo: m, hi: m}; }
+    return {lo: lo + 4, hi: hi - 4};
+  }
+  function fanInterval(u){
+    var fs = fanFacesU(u); if (!fs.length) return null;
+    return intervalFromFaces(fs.map(function(f){ return f.p; }));
+  }
+  function fanTarget(u){
+    var sp = fanSpanU(u); if (!sp) return null;
+    if (sp.n === 1) return sp.lo;
+    return (sp.lo + sp.hi) / 2;
+  }
+  // how far parent units sit outside their fan interval, tree-wide
+  function fanViolation(){
+    var v = 0;
+    units.forEach(function(u){
+      if (!placedU[u.key] || u === rootUnit) return;
+      var iv = fanInterval(u); if (!iv) return;
+      if (u.cx < iv.lo) v += iv.lo - u.cx;
+      else if (u.cx > iv.hi) v += u.cx - iv.hi;
+    });
+    return v;
+  }
+  // how much neighbouring faces crowd each other, tree-wide (face spacing)
+  function rowCrowding(){
+    var v = 0, rows = {};
+    units.forEach(function(u){
+      if (!placedU[u.key] || u.cx == null) return;
+      (rows[u.depth] = rows[u.depth] || []).push(u);
+    });
+    Object.keys(rows).forEach(function(d){
+      var row = rows[d].sort(function(a, b){ return a.cx - b.cx; });
+      for (var i = 1; i < row.length; i++){
+        var need = faceHalf(row[i - 1]) + 6 + faceHalf(row[i]);
+        var dist = row[i].cx - row[i - 1].cx;
+        if (dist < need) v += need - dist;
+      }
+    });
+    return v;
+  }
+  var cx0 = {};
+  units.forEach(function(u){ if (u.cx != null) cx0[u.key] = u.cx; });
+  function fanScore(){
+    var s = fanViolation() * 1000000 + rowCrowding() * 10000;
+    units.forEach(function(u){
+      if (!placedU[u.key] || u === rootUnit) return;
+      var t = fanTarget(u); if (t == null) return;
+      var sp = fanSpanU(u);
+      s += Math.abs(t - u.cx) * (sp && sp.n === 1 ? 4 : 1);
+      if (cx0[u.key] != null) s += 0.5 * Math.abs(u.cx - cx0[u.key]);
+    });
+    return s;
+  }
+  function clampFans(){
+    for (var fd = 1; fd <= 4; fd++){
+      units.forEach(function(u){
+        if (!placedU[u.key] || u === rootUnit || u.depth !== fd) return;
+        var iv = fanInterval(u); if (!iv) return;
+        var t = Math.max(iv.lo, Math.min(iv.hi, u.cx));
+        if (Math.abs(t - u.cx) > 0.25) slideUnit(u, t - u.cx);
+      });
+    }
+  }
+  function settleAllRows(){
+    for (var sd = 0; sd <= 4; sd++){
+      var rbc = rootUnit ? rootUnit.cx : 0;
+      settleDepth(sd, faceModeRow[sd] ? faceHalf : null, faceModeRow[sd] ? 6 : null);
+      if (sd === 1 && rootUnit && rootUnit.cx !== rbc){
+        var pdx = rootUnit.cx - rbc;
+        (childrenOf[rootUnit.key] || []).forEach(function(e){
+          if (placedU[e.unit.key] && e.unit.depth === 0) slideUnit(e.unit, pdx);
+        });
+      }
+    }
+    treyGuard();
+  }
+  // Trey's own portrait is not a unit, so the row settle cannot see it —
+  // keep every top-row portrait clear of him
+  function treyGuard(){
+    if (!rootUnit) return;
+    units.forEach(function(u){
+      if (!placedU[u.key] || u.depth !== 0) return;
+      var needT = 59 + faceHalf(u) + 10, dxT = u.cx - rootUnit.cx;
+      if (Math.abs(dxT) < needT) slideUnit(u, (dxT < 0 ? -1 : 1) * (needT - Math.abs(dxT)));
+    });
+  }
+  /* Slide a unit sideways, but never out of its own fan: if the fan's edge
+     is what blocks the slide, first drag the child unit whose face defines
+     that edge, so the whole branch above gives ground. */
+  function dragUnit(u, dx, guard){
+    if (!u || !placedU[u.key] || !dx || guard > 6) return;
+    if (dx > 600) dx = 600; else if (dx < -600) dx = -600;
+    var rest = dx, tries = 0;
+    while (rest && tries < 3){
+      tries++;
+      var iv = (u === rootUnit) ? {lo: u.cx, hi: u.cx} : fanInterval(u);
+      var room = 1e9, boundU = null;
+      if (iv){
+        var sp = fanSpanU(u);
+        if (rest > 0){ room = Math.max(0, iv.hi - u.cx); boundU = sp ? (sp.n === 1 ? sp.loU : sp.hiU) : null; }
+        else { room = Math.max(0, u.cx - iv.lo); boundU = sp ? sp.loU : null; }
+      }
+      var step = Math.max(-room, Math.min(room, rest));
+      if (step){ slideUnit(u, step); rest -= step; }
+      if (rest && boundU && boundU !== u) dragUnit(boundU, rest, guard + 1);
+      else break;
+    }
+  }
+  var faceModeRow = {}, bestScore = Infinity, bestSnap = null;
+  function snapPos(){
+    var s = {};
+    Object.keys(pos).forEach(function(k){ s[k] = pos[k].x; });
+    units.forEach(function(u){ if (u.cx != null) s["u:" + u.key] = u.cx; });
+    return s;
+  }
+  function restoreSnap(s){
+    Object.keys(pos).forEach(function(k){ if (s[k] != null) pos[k].x = s[k]; });
+    units.forEach(function(u){ if (s["u:" + u.key] != null) u.cx = s["u:" + u.key]; });
+  }
+  function considerSnap(){
+    treyGuard();
+    var ns = fanScore();
+    if (ns < bestScore){ bestScore = ns; bestSnap = snapPos(); }
+  }
+  // phase A: clamp into fans and re-settle the rows, back and forth
+  for (var fr = 0; fr < 30; fr++){
+    clampFans(); considerSnap(); settleAllRows(); considerSnap();
+    if (fanViolation() <= 0.5 && rowCrowding() <= 0.5) break;
+    if (fr === 9 && fanViolation() > 0.5){
+      // still stranded: every row's settle relaxes to face-to-face spacing
+      for (var fm = 0; fm <= 4; fm++) faceModeRow[fm] = 1;
+    }
+  }
+  // phase B: couples still stranded outside their fan — drag their children over
+  var prevV = Infinity, stallB = 0;
+  for (var fb = 0; fb < 20 && fanViolation() > 0.5; fb++){
+    for (var gd = 4; gd >= 1; gd--){
+      units.forEach(function(u){
+        if (!placedU[u.key] || u === rootUnit || u.depth !== gd) return;
+        var iv = fanInterval(u); if (!iv) return;
+        var sp = fanSpanU(u); if (!sp) return;
+        if (u.cx < iv.lo) dragUnit(sp.loU, -(iv.lo - u.cx + 2), 0);
+        else if (u.cx > iv.hi) dragUnit(sp.hiU, (u.cx - iv.hi + 2), 0);
+      });
+    }
+    clampFans(); considerSnap(); settleAllRows(); considerSnap();
+    var nowV = fanViolation();
+    if (nowV > prevV - 0.5 && ++stallB >= 3){ for (var fm2 = 0; fm2 <= 4; fm2++) faceModeRow[fm2] = 1; stallB = 0; }
+    prevV = nowV;
+  }
+  if (bestSnap && fanScore() > bestScore) restoreSnap(bestSnap);
+  /* Phase C: centre each parent unit over its fan, one careful slide at a
+     time — a slide is accepted only if the unit stays inside its fan, its
+     row neighbours keep their room, and its own parents stay over it. */
+  function centerOk(u, step){
+    var nx = u.cx + step;
+    var iv = fanInterval(u);
+    if (iv && (nx < iv.lo - 0.01 || nx > iv.hi + 0.01)) return false;
+    var row = units.filter(function(w){ return placedU[w.key] && w.depth === u.depth && w.cx != null; })
+      .sort(function(a, b){ return a.cx - b.cx; });
+    for (var i = 0; i < row.length; i++){
+      if (row[i] === u) continue;
+      var wx = row[i].cx, need = faceHalf(u) + 6 + faceHalf(row[i]);
+      if (Math.abs(nx - wx) < need - 0.01) return false;
+      if ((u.cx - wx) * (nx - wx) < 0) return false; // never jump a neighbour
+    }
+    var ok = true;
+    u.members.forEach(function(m){
+      if (!ok) return;
+      var pu = parentUnitOf(m);
+      if (!pu || pu === u || pu === rootUnit || !placedU[pu.key]) return;
+      var fs = fanFacesU(pu).map(function(f){
+        return f.unit === u ? {x: f.p.x + step, d: f.p.d} : f.p;
+      });
+      var piv = intervalFromFaces(fs);
+      if (piv && (pu.cx < piv.lo - 0.01 || pu.cx > piv.hi + 0.01)) ok = false;
+    });
+    return ok;
+  }
+  function tryCenter(u){
+    var t = fanTarget(u); if (t == null) return false;
+    var dx = t - u.cx; if (Math.abs(dx) < 1) return false;
+    var fracs = [1, 0.5, 0.25];
+    for (var i = 0; i < fracs.length; i++){
+      var step = dx * fracs[i];
+      if (Math.abs(step) < 1) continue;
+      if (centerOk(u, step)){ slideUnit(u, step); return true; }
+    }
+    return false;
+  }
+  for (var cp = 0; cp < 8; cp++){
+    var movedC = false;
+    units.forEach(function(u){
+      if (!placedU[u.key] || u === rootUnit) return;
+      if (tryCenter(u)) movedC = true;
+    });
+    if (!movedC) break;
+  }
+  // final polish: pure clamp/settle rounds until containment and spacing
+  // hold at the same time, keeping whichever state scored best
+  for (var fp = 0; fp < 120; fp++){
+    clampFans(); settleAllRows(); considerSnap();
+    if (fanViolation() <= 0.5 && rowCrowding() <= 0.5) break;
+  }
+  if (bestSnap && fanScore() > bestScore) restoreSnap(bestSnap);
+  treyGuard();
+  pos.__trey = {x: rootUnit ? rootUnit.cx : 0, y: TOP_Y, d: 118};
+  // anyone the branching cannot reach (no parents in the tree, and not the spouse
+  // of someone who has) still gets a place: a plain row beneath the tree
+  var stray = units.filter(function(u){ return !placedU[u.key]; });
+  var strayBottom = 0;
+  if (stray.length){
+    var sy = TOP_Y + maxDepth * ROW_H + 236, srow = [], srowW = 0;
+    var flushStray = function(){
+      if (!srow.length) return;
+      var x = (rootUnit ? rootUnit.cx : 0) - srowW / 2;
+      srow.forEach(function(u){
+        var w = u.members.length === 2 ? 2 * SLOT : SLOT;
+        u.members.forEach(function(m, i){ pos[m.slug] = {x: x + SLOT * i + SLOT / 2, y: sy, d: 70}; });
+        x += w;
+      });
+      strayBottom = sy; sy += 200; srow = []; srowW = 0;
+    };
+    stray.forEach(function(u){
+      var w = u.members.length === 2 ? 2 * SLOT : SLOT;
+      if (srow.length && srowW + w > SLOT * 8) flushStray();
+      srow.push(u); srowW += w;
+    });
+    flushStray();
+  }
+  // fit the canvas to the width the branching actually needs
+  var minE = 1e9, maxE = -1e9;
+  Object.keys(pos).forEach(function(k){ var p = pos[k]; if (p.x - 72 < minE) minE = p.x - 72; if (p.x + 72 > maxE) maxE = p.x + 72; });
+  var shift = 92 - minE, W = Math.ceil(maxE - minE + 184), CX = pos.__trey.x + shift;
+  Object.keys(pos).forEach(function(k){ pos[k].x += shift; });
+  units.forEach(function(u){ if (u.cx != null) u.cx += shift; });
+  var H = (strayBottom ? strayBottom : TOP_Y + maxDepth * ROW_H) + 168;
+
+
+
+
+
+
+
+
+  // the attachment point of a couple: the midpoint between the two partners
+  function anchorOf(u){
+    var ps = u.members.map(function(m){ return pos[m.slug]; }).filter(Boolean);
+    if (!ps.length) return null;
+    var x = 0; ps.forEach(function(p){ x += p.x; });
+    return {x: Math.round(x / ps.length), y: ps[0].y, d: ps[0].d};
   }
   var paths = "";
-  function branch(p, c, w, op){
-    var y1 = p.y + p.d / 2, y2 = c.y - c.d / 2;
-    var my = (y1 + y2) / 2;
-    paths += '<path d="M' + p.x + ' ' + y1 + ' C ' + p.x + ' ' + my + ', ' + c.x + ' ' + my + ', ' + c.x + ' ' + y2 + '" fill="none" stroke="#8A5A3B" stroke-width="' + w + '" stroke-linecap="round" opacity="' + op + '"/>';
+  function branch(x1, y1, x2, y2, w, op){
+    var my = Math.round((y1 + y2) / 2);
+    paths += '<path d="M' + Math.round(x1) + ' ' + Math.round(y1) + ' C ' + Math.round(x1) + ' ' + my + ', ' + Math.round(x2) + ' ' + my + ', ' + Math.round(x2) + ' ' + Math.round(y2) + '" fill="none" stroke="#8A5A3B" stroke-width="' + w + '" stroke-linecap="round" opacity="' + op + '"/>';
   }
-  // two main limbs from Trey
-  paths += '<path d="M' + CX + ' 150 C ' + (CX - 190) + ' 260, ' + (CX - 430) + ' 330, ' + (CX - 560) + ' 520" fill="none" stroke="#8A5A3B" stroke-width="13" stroke-linecap="round" opacity=".55"/>';
-  paths += '<path d="M' + CX + ' 150 C ' + (CX + 190) + ' 260, ' + (CX + 430) + ' 330, ' + (CX + 560) + ' 520" fill="none" stroke="#8A5A3B" stroke-width="13" stroke-linecap="round" opacity=".55"/>';
-  // Trey's stem drops from him to the bar between Mom & Dad — the bar joins the couple,
-  // with a short drop to each parent and a direct link between their two portraits
-  (function(){
-    var dad = null, mom = null;
-    levels[1].forEach(function(m){ if (side[m.slug] === "R") mom = m; else dad = m; });
-    if (dad && mom && pos[dad.slug] && pos[mom.slug]){
-      var dp = pos[dad.slug], mp = pos[mom.slug], tp = pos.__trey;
-      var barY = Math.round((tp.y + tp.d / 2 + dp.y - dp.d / 2) / 2);
-      paths += '<path d="M' + tp.x + ' ' + (tp.y + tp.d / 2) + ' L' + tp.x + ' ' + barY +
-        ' M' + dp.x + ' ' + barY + ' L' + mp.x + ' ' + barY +
-        ' M' + dp.x + ' ' + barY + ' L' + dp.x + ' ' + (dp.y - dp.d / 2) +
-        ' M' + mp.x + ' ' + barY + ' L' + mp.x + ' ' + (mp.y - mp.d / 2) +
-        '" fill="none" stroke="#8A5A3B" stroke-width="8" stroke-linecap="round" opacity=".7"/>';
-      paths += '<path d="M' + (dp.x + dp.d / 2) + ' ' + dp.y + ' L' + (mp.x - mp.d / 2) + ' ' + mp.y + '" fill="none" stroke="#8A5A3B" stroke-width="5" stroke-linecap="round" opacity=".7"/>';
-    }
-  })();
-  [2, 3, 4, 5].forEach(function(lv){
-    levels[lv].forEach(function(m){
-      var par = PARENTS[m.slug]; if (!par) return;
-      var c = pos[m.slug]; if (!c) return;
-      link(parentAnchor(par), c, lv === 2 ? 5 : (lv === 5 ? 3 : 4), .5);
-    });
+  // stems: every person is joined to the midpoint of their OWN parents, so a
+  // sibling group visibly shares one attachment point on its own parents' couple
+  DATA.members.forEach(function(m){
+    var pu = parentUnitOf(m); if (!pu) return;
+    var c = (m === treyMember) ? pos.__trey : pos[m.slug];
+    var a = anchorOf(pu);
+    if (!c || !a) return;
+    var depth = (m === treyMember) ? 0 : (unitOf[m.slug] ? unitOf[m.slug].depth : 2);
+    branch(c.x, c.y + c.d / 2, a.x, a.y - a.d / 2, depth <= 1 ? 5 : (depth === 2 ? 4 : 3.5), .55);
   });
-  // every married couple gets the same direct link between their portraits as Mom & Dad
-  Object.keys(partnerOf).forEach(function(s){
-    var t = partnerOf[s]; if (s > t) return; // each pair once
-    var a = pos[s], b = pos[t]; if (!a || !b) return;
-    if (Math.abs(a.y - b.y) > 2) return;
-    if (treeLevelOf(bySlug[s]) === 1) return; // Mom & Dad already have theirs above
+  // every married couple gets a direct link between their portraits, and couples
+  // with children get a dot at the attachment point their children's stems land on
+  units.forEach(function(u){
+    if (u.members.length !== 2) return;
+    var a = pos[u.members[0].slug], b = pos[u.members[1].slug];
+    if (!a || !b || Math.abs(a.y - b.y) > 2) return;
     var lft = a.x < b.x ? a : b, rgt = a.x < b.x ? b : a;
-    paths += '<path d="M' + (lft.x + lft.d / 2) + ' ' + lft.y + ' L' + (rgt.x - rgt.d / 2) + ' ' + rgt.y + '" fill="none" stroke="#8A5A3B" stroke-width="4" stroke-linecap="round" opacity=".55"/>';
+    paths += '<path d="M' + Math.round(lft.x + lft.d / 2) + ' ' + lft.y + ' L' + Math.round(rgt.x - rgt.d / 2) + ' ' + rgt.y + '" fill="none" stroke="#8A5A3B" stroke-width="4" stroke-linecap="round" opacity=".55"/>';
+    if (fanUnits(u).length){
+      var an = anchorOf(u);
+      if (an) paths += '<circle cx="' + an.x + '" cy="' + Math.round(an.y - an.d / 2) + '" r="4.5" fill="#8A5A3B" opacity=".8"/>';
+    }
   });
   // leafy canopy, deterministic scatter
   var leaves = "", seed = 11;
@@ -934,19 +1396,18 @@ function pageTree(){
       '<span class="tface" style="width:' + d + 'px;height:' + d + 'px;font-size:' + fs + 'px">' + inner + '</span>' +
       '<span class="tname">' + esc(name) + '</span>' + (rel ? '<span class="trel">' + esc(rel) + '</span>' : '') + '</a>';
   }
-  var nodes = tnode(CX, 100, dia[0], phImg("badge.png", "Trey — Baby Anderson badge", "timg badgeimg"), "Jonathan Malick Anderson", "“Trey” · arriving April 2, 2027", "#home", 40);
-  [1, 2, 3, 4, 5].forEach(function(lv){
-    levels[lv].forEach(function(m){
-      var p = pos[m.slug]; if (!p) return;
-      var tphoto = m.treePhoto || (m.photos && m.photos[0]);
-      var inner = tphoto ? phImg(tphoto, m.name, m.treePhoto ? "timg hs" : "timg") :
-        '<span class="initials">' + esc(treeInitials(m.name)) + '</span>';
-      var rel = m.relation + (m.memorial ? " · 🕊️" : "") + (m.godparent ? " · ⭐ godparent" : "");
-      nodes += tnode(p.x, p.y, p.d, inner, m.name, rel, "#member/" + esc(m.slug), Math.round(p.d * .38));
-    });
+  var nodes = tnode(CX, TOP_Y, 118, phImg("badge.png", "Trey — Baby Anderson badge", "timg badgeimg"), "Jonathan Malick Anderson", "“Trey” · arriving April 2, 2027", "#home", 40);
+  DATA.members.forEach(function(m){
+    if (m === treyMember) return;
+    var p = pos[m.slug]; if (!p) return;
+    var tphoto = m.treePhoto || (m.photos && m.photos[0]);
+    var inner = tphoto ? phImg(tphoto, m.name, m.treePhoto ? "timg hs" : "timg") :
+      '<span class="initials">' + esc(treeInitials(m.name)) + '</span>';
+    var rel = m.relation + (m.memorial ? " · 🕊️" : "") + (m.godparent ? " · ⭐ godparent" : "");
+    nodes += tnode(p.x, p.y, p.d, inner, m.name, rel, "#member/" + esc(m.slug), Math.round(p.d * .38));
   });
   var total = DATA.members.length;
-  var h = band("The Family Tree", "Trey at the top, and the whole family stemming out beneath him — " + total + " family members across five generations. Mom's side branches right, Dad's side branches left; aunts, uncles, cousins and godparents run along the outer branch lines. On the tree, every portrait is cropped in close on the face — tap any face to open their page.") +
+  var h = band("The Family Tree", "Trey at the top, and the whole family stemming out beneath him — " + total + " family members across five generations. Every branch hangs from the couple it descends from: brothers and sisters fan out together in the row above their own parents, each with their own stem down to that couple. On the tree, every portrait is cropped in close on the face — tap any face to open their page.") +
     '<div class="notice" style="margin-bottom:16px"><b>Family origins:</b> all Seals born in Sneedville, TN · all Andersons born in Illinois · all Freedlunds born in Illinois · all Sallahs born in The Gambia.</div>' +
     '<div class="treebar"><button class="btn small" type="button" data-tzoom="out">− Zoom out</button>' +
     '<span id="tzlabel" style="font-weight:600;color:var(--muted)">100%</span>' +
@@ -1366,7 +1827,7 @@ function bindPage(page, parts){
       b.addEventListener("click", function(){ downloadPhoto(b.getAttribute("data-dl")); });
     });
     document.getElementById("json-btn").addEventListener("click", function(){
-      var backup = { site:"Baby Anderson — website edition", version:"v1.45", exported:new Date().toISOString(), sessionEdits: state, data: DATA };
+      var backup = { site:"Baby Anderson — website edition", version:"v1.47", exported:new Date().toISOString(), sessionEdits: state, data: DATA };
       downloadBlob(new Blob([JSON.stringify(backup, null, 2)], {type:"application/json"}), "baby-anderson-backup.json");
     });
     document.getElementById("planner-btn").addEventListener("click", function(){
