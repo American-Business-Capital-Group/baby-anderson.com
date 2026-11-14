@@ -301,6 +301,23 @@ h2 .ic,h3 .ic{width:21px;height:21px}
 .scanrow p{margin:3px 0 0;color:var(--muted);font-size:15px}
 .scanbadge{display:inline-block;background:#EAF7EE;color:#177245;border:1px solid #9BD3A8;border-radius:999px;padding:2px 11px;font-size:13.5px;font-weight:700;white-space:nowrap;margin-top:2px}
 @media (prefers-color-scheme: dark){ .scanbadge{background:#12351D;color:#8FE0A6;border-color:#2FA84F} }
+/* ---------- Weekend Schedule ---------- */
+.wkrow{display:flex;gap:14px;align-items:center;padding:14px 0;border-bottom:1px solid var(--line)}
+.wkrow:last-child{border-bottom:none}
+.wkbox{flex:0 0 26px;width:26px;height:26px;border-radius:7px;border:2px solid var(--sky);background:transparent;color:#fff;font-weight:700;font-size:15px;display:flex;align-items:center;justify-content:center;padding:0}
+.wkrow.done .wkbox{background:var(--sky)}
+.wkrow.done .wkmain h3{text-decoration:line-through;color:var(--muted)}
+.wkdate{flex:0 0 76px;text-align:center;background:var(--surface2);border:1px solid var(--line);border-radius:12px;padding:7px 4px}
+.wkdate span{display:block;font-size:11.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
+.wkdate b{font-family:"Marcellus",serif;font-size:21px;color:var(--deep)}
+@media (prefers-color-scheme: dark){ .wkdate b{color:var(--bundle)} }
+.wkmain{flex:1;min-width:0}
+.wkmain h3{margin:0;font-size:18.5px}
+.wkmain p{margin:2px 0 0;color:var(--muted);font-size:14.5px;font-weight:600}
+.wkstatus{flex:0 0 auto;font-size:13px;font-weight:700;color:var(--muted)}
+.wkstatus.now{background:var(--gold);color:#4a3205;border-radius:999px;padding:3px 12px}
+.wkform{display:grid;grid-template-columns:1fr 1fr 2fr;gap:0 14px}
+@media (max-width:640px){ .wkrow{flex-wrap:wrap} .wkform{grid-template-columns:1fr 1fr} .wkform-task{grid-column:1/-1} }
 </style>
 </head>
 <body>
@@ -371,7 +388,7 @@ h2 .ic,h3 .ic{width:21px;height:21px}
   </div></header>
   <main id="view"></main>
   <footer class="site">
-    <div>v1.49</div>
+    <div>v1.50</div>
     <div>Artificial Intelligence Designed Exclusively by the American Business Capital Group, Inc. © 2026 All Rights Reserved</div>
   </footer>
 </div>
@@ -393,7 +410,7 @@ var PAYLOAD_B64 = "8DS1bpAyBCX6KjevkAG+DalqNyj89oTDWJomRfsf4cwU/1rHzZ3jMT+V+5OfN
 var KEY = null, DATA = null;
 var blobCache = {};   // filename -> object URL
 var blobRaw = {};     // filename -> {blob, mime}
-var state = { checked:{}, memberEdits:{}, favorites:[], lineage:[], apptNotes:"", addedItems:[] };
+var state = { checked:{}, memberEdits:{}, favorites:[], lineage:[], apptNotes:"", addedItems:[], weekends:[] };
 
 function hexToBytes(h){ var a=new Uint8Array(h.length/2); for(var i=0;i<a.length;i++) a[i]=parseInt(h.substr(i*2,2),16); return a; }
 function bufToHex(b){ return Array.prototype.map.call(new Uint8Array(b), function(x){ return ("0"+x.toString(16)).slice(-2); }).join(""); }
@@ -499,7 +516,7 @@ function startTicker(){
 /* ---------- nav & routing ---------- */
 var NAV = [
   ["home","Home"],["tree","Family Tree"],["profile","Trey's Profile"],["babybook","Baby Book"],["journey","Our Story"],
-  ["appointments","Appointments"],["care","Care Team"],["route","Hospital Route"],
+  ["appointments","Appointments"],["schedule","Weekend Schedule"],["care","Care Team"],["route","Hospital Route"],
   ["lists","Checklists"],["registry","Registry & Shower"],["names","Names"],["learn","Learn"],["downloads","Downloads"]
 ];
 function buildNav(){
@@ -546,6 +563,7 @@ function route(){
     else if (page === "journey") html = pageJourney();
     else if (page === "timelines") html = pageTimeline(parts[1] || "couple");
     else if (page === "appointments") html = pageAppointments();
+    else if (page === "schedule") html = pageSchedule();
     else if (page === "care") html = pageCare();
     else if (page === "route") html = pageRoute();
     else if (page === "lists") html = pageLists(parts[1] || "prep");
@@ -1640,6 +1658,58 @@ function pageAppointments(){
   return h + '</div>';
 }
 
+/* ================= WEEKEND SCHEDULE ================= */
+var BASE_WEEKENDS = [
+  {start:"2026-11-14", end:"2026-11-15", task:"Clear out nursery"},
+  {start:"2026-11-21", end:"2026-11-22", task:"Clear out bedroom"},
+  {start:"2026-11-28", end:"2026-11-29", task:"Thanksgiving weekend"},
+  {start:"2026-12-06", end:"2026-12-07", task:"Clean & set up kitchen"},
+  {start:"2026-12-13", end:"2026-12-14", task:"Clean & org. basement"},
+  {start:"2026-12-20", end:"2026-12-21", task:"Baby proofing"},
+  {start:"2026-12-27", end:"2026-12-28", task:"Sallahs visiting, set up nursery furniture"},
+  {start:"2027-03-06", end:"2027-03-07", task:"Clear out garage"},
+  {start:"2027-03-13", end:"2027-03-14", task:"Set up bedroom for Baby"}
+];
+var WK_DOW = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+var WK_MON = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+function wkDate(iso){ var p = String(iso||"").split("-"); return new Date(+p[0], (+p[1]||1)-1, +p[2]||1); }
+function wkRangeLabel(w){
+  var s = wkDate(w.start), e = wkDate(w.end || w.start);
+  var left = WK_DOW[s.getDay()] + ", " + WK_MON[s.getMonth()] + " " + s.getDate();
+  if (!w.end || w.end === w.start) return left + ", " + s.getFullYear();
+  return left + " \u2013 " + WK_DOW[e.getDay()] + ", " + WK_MON[e.getMonth()] + " " + e.getDate() + ", " + e.getFullYear();
+}
+function pageSchedule(){
+  var all = BASE_WEEKENDS.map(function(w){ return {start:w.start, end:w.end, task:w.task, added:false, idx:-1}; })
+    .concat((state.weekends||[]).map(function(w, i){ return {start:w.start, end:w.end, task:w.task, added:true, idx:i}; }));
+  all.sort(function(a,b){ return a.start < b.start ? -1 : (a.start > b.start ? 1 : 0); });
+  var today = new Date(); today.setHours(0,0,0,0);
+  var rows = all.map(function(w){
+    var s = wkDate(w.start), e = wkDate(w.end || w.start);
+    var key = "wk|" + w.start + "|" + w.task;
+    var done = !!state.checked[key];
+    var status = (today >= s && today <= e) ? "This weekend" : (today > e ? "Past" : "Coming up");
+    var badgeDays = s.getDate() + ((w.end && w.end !== w.start) ? "\u2013" + e.getDate() : "");
+    return '<div class="wkrow' + (done ? ' done' : '') + '">' +
+      '<button type="button" class="wkbox" data-check="' + esc(key) + '" aria-label="Check off: ' + esc(w.task) + '">' + (done ? '\u2713' : '') + '</button>' +
+      '<div class="wkdate"><span>' + WK_MON[s.getMonth()] + ' ' + s.getFullYear() + '</span><b>' + badgeDays + '</b></div>' +
+      '<div class="wkmain"><h3>' + esc(w.task) + (w.added ? ' <span class="chip" style="vertical-align:2px">Added by the family</span>' : '') + '</h3>' +
+      '<p>' + ic("calendar") + esc(wkRangeLabel(w)) + '</p></div>' +
+      '<span class="wkstatus' + (status === "This weekend" ? ' now' : '') + '">' + status + '</span>' +
+      (w.added ? '<button type="button" class="btn small ghost" data-wk-del="' + w.idx + '">Remove</button>' : '') +
+      '</div>';
+  }).join("");
+  var h = band("Weekend Schedule", "The weekend-by-weekend plan for getting the house ready for Trey \u2014 due April 2, 2027. Tap the square beside a weekend to check it off.") +
+    '<div class="card" style="padding:10px 18px">' + rows + '</div>' +
+    '<div class="card" style="margin-top:16px"><h3 style="margin-top:0">' + ic("calendar") + 'Add a weekend</h3>' +
+    '<div class="wkform"><div><label class="f" for="wk-start">Starts</label><input type="date" id="wk-start" /></div>' +
+    '<div><label class="f" for="wk-end">Ends</label><input type="date" id="wk-end" /></div>' +
+    '<div class="wkform-task"><label class="f" for="wk-task">What\u2019s the plan?</label><input type="text" id="wk-task" placeholder="e.g. Paint the nursery" /></div></div>' +
+    '<p id="wk-err" role="alert" style="color:#B3261E;font-weight:600;min-height:1.2em;margin:8px 0 0"></p>' +
+    '<p style="margin-bottom:0"><button class="btn small" id="add-weekend-btn" type="button">Add weekend</button> <span style="color:var(--muted);font-size:14px">Weekends you add stay in this session and ride along in the JSON backup from the Downloads page, just like checklist additions.</span></p></div>';
+  return h + '</div>';
+}
+
 function pageCare(){
   var h = band("Care Team & Facilities", "The doctors who got Trey here — and the nine Duly physicians who may deliver him. Scheduling for all Duly doctors: (630) 980-3366.");
   h += '<div class="grid c3">' + DATA.doctors.map(function(d){
@@ -1881,6 +1951,27 @@ function bindPage(page, parts){
     var ta = document.getElementById("appt-notes");
     if (ta) ta.addEventListener("input", function(){ state.apptNotes = ta.value; });
   }
+  if (page === "schedule"){
+    var wbtn = document.getElementById("add-weekend-btn");
+    if (wbtn) wbtn.addEventListener("click", function(){
+      var st = document.getElementById("wk-start"), en = document.getElementById("wk-end"), tk = document.getElementById("wk-task"), er = document.getElementById("wk-err");
+      var task = tk.value.trim();
+      if (!st.value || !task){ er.textContent = "Pick a start date and write the plan first."; return; }
+      var end = en.value || st.value;
+      if (end < st.value){ er.textContent = "The end date is before the start date \u2014 check those dates."; return; }
+      if (!state.weekends) state.weekends = [];
+      state.weekends.push({start: st.value, end: end, task: task}); route();
+    });
+    var tkIn = document.getElementById("wk-task");
+    if (tkIn && wbtn) tkIn.addEventListener("keydown", function(e){ if (e.key === "Enter"){ e.preventDefault(); wbtn.click(); } });
+    v.querySelectorAll("[data-wk-del]").forEach(function(b){
+      b.addEventListener("click", function(){
+        var i = +b.getAttribute("data-wk-del");
+        if (state.weekends && state.weekends[i]) state.weekends.splice(i, 1);
+        route();
+      });
+    });
+  }
   if (page === "lists"){
     var btn = document.getElementById("add-item-btn");
     if (btn) btn.addEventListener("click", function(){
@@ -1922,7 +2013,7 @@ function bindPage(page, parts){
       b.addEventListener("click", function(){ downloadPhoto(b.getAttribute("data-dl")); });
     });
     document.getElementById("json-btn").addEventListener("click", function(){
-      var backup = { site:"Baby Anderson — website edition", version:"v1.49", exported:new Date().toISOString(), sessionEdits: state, data: DATA };
+      var backup = { site:"Baby Anderson — website edition", version:"v1.50", exported:new Date().toISOString(), sessionEdits: state, data: DATA };
       downloadBlob(new Blob([JSON.stringify(backup, null, 2)], {type:"application/json"}), "baby-anderson-backup.json");
     });
     document.getElementById("planner-btn").addEventListener("click", function(){
